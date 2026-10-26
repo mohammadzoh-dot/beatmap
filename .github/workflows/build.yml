@@ -8,24 +8,52 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Extract ZIP files
+      - name: Extract All ZIP Files
         shell: pwsh
         run: |
-          Get-ChildItem -Filter *.zip | ForEach-Object {
+          Get-ChildItem -Recurse -Filter *.zip | ForEach-Object {
+            Write-Host "Extracting $($_.FullName)..."
             Expand-Archive -Path $_.FullName -DestinationPath . -Force
           }
+          Write-Host "Files list:"
+          Get-ChildItem -Recurse | Select-Object FullName
 
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Build Windows Program
+      - name: Prepare and Build Project
         shell: pwsh
         run: |
-          $proj = (Get-ChildItem -Recurse -Filter "BeatMap.Hrv.Demo.csproj" | Select-Object -First 1).FullName
-          dotnet publish $proj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./output
+          # پیدا کردن فایل پروژه موجود یا ساخت فایل پروژه جدید در صورت عدم وجود
+          $proj = (Get-ChildItem -Recurse -Filter "*.csproj" | Where-Object { $_.Name -match "Demo" -or $_.Name -match "Hrv" } | Select-Object -First 1)
+
+          if (-not $proj) {
+            Write-Host "Creating project file automatically..."
+            $projXml = @"
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <OutputType>WinExe</OutputType>
+              <TargetFramework>net8.0-windows</TargetFramework>
+              <UseWPF>true</UseWPF>
+              <Nullable>enable</Nullable>
+              <ImplicitUsings>enable</ImplicitUsings>
+            </PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="OxyPlot.Wpf" Version="2.1.2" />
+            </ItemGroup>
+          </Project>
+          "@
+            Set-Content -Path "BeatMapApp.csproj" -Value $projXml
+            $targetProj = "BeatMapApp.csproj"
+          } else {
+            $targetProj = $proj.FullName
+          }
+
+          Write-Host "Building project: $targetProj"
+          dotnet publish $targetProj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./output
 
       - uses: actions/upload-artifact@v4
         with:
-          name: BeatMap-Windows-Program
+          name: BeatMap-Windows-Software
           path: ./output/*.exe
