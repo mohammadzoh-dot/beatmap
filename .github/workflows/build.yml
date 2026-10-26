@@ -1,4 +1,4 @@
-name: Build My App
+name: Build Windows Software
 
 on: [push, workflow_dispatch]
 
@@ -7,12 +7,25 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Extract ZIP files
+        shell: pwsh
+        run: |
+          Get-ChildItem -Filter *.zip | ForEach-Object {
+            Expand-Archive -Path $_.FullName -DestinationPath . -Force
+          }
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-      - name: Build
-        run: dotnet publish demo/BeatMap.Hrv.Demo.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./output
-      - uses: upload-artifact@v4
+
+      - name: Build Windows Program
+        shell: pwsh
+        run: |
+          $proj = (Get-ChildItem -Recurse -Filter "BeatMap.Hrv.Demo.csproj" | Select-Object -First 1).FullName
+          dotnet publish $proj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./output
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: BeatMap-Windows-App
-          path: ./output/BeatMap.Hrv.Demo.exe
+          name: BeatMap-Windows-Program
+          path: ./output/*.exe
